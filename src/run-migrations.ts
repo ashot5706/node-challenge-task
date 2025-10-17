@@ -1,4 +1,4 @@
-import { AppDataSource } from '../data/data-source';
+import { AppDataSource } from './data/data-source';
 
 // Function to run migrations
 async function runMigrations() {
