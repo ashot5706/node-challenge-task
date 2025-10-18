@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { Kafka, Producer } from 'kafkajs';
-import { TokenPriceUpdateMessage, tokenPriceUpdateMessageSchema } from '../models/token-price-update-message';
+import { TokenPriceUpdateMessage, tokenPriceUpdateMessageSchema } from '../schemas/token-price-updated.message';
 
 @Injectable()
 export class KafkaProducerService implements OnModuleDestroy {

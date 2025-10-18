@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Token } from '../models/token.entity';
-import { validateToken } from '../models/token.schema';
+import { Token } from '../entities/token.entity';
+import { validateToken } from '../dto/token.dto';
 
 @Injectable()
 export class TokenSeeder {

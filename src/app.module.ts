@@ -1,32 +1,23 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { Token } from './models/token.entity';
+import { Token } from './entities/token.entity';
 import { TokenPriceUpdateService } from './services/token-price-update.service';
 import { MockPriceService } from './services/mock-price.service';
 import { KafkaProducerService } from './kafka/kafka-producer.service';
 import { TokenSeeder } from './data/token.seeder';
+import { databaseConfig } from './config/database.config';
+import * as controllers from './controllers';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'postgres',
-      password: 'postgres',
-      database: 'tokens',
-      entities: [Token],
-      migrations: [__dirname + '/migrations/*.{js,ts}'],
-      migrationsRun: true, // Run migrations automatically
-      synchronize: false, // Disabled when using migrations
-    }),
+    TypeOrmModule.forRoot(databaseConfig),
     TypeOrmModule.forFeature([Token]),
   ],
-  controllers: [],
+  controllers: Object.values(controllers),
   providers: [
     TokenPriceUpdateService,
     MockPriceService,

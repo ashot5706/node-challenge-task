@@ -2,11 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { Kafka, Consumer, KafkaMessage } from 'kafkajs';
-import { Token } from '../../models/token.entity';
-import { TokenPriceUpdateService } from '../../services/token-price-update.service';
-import { MockPriceService } from '../../services/mock-price.service';
-import { KafkaProducerService } from '../../kafka/kafka-producer.service';
-import { TokenPriceUpdateMessage } from '../../models/token-price-update-message';
+import { Token } from '../../src/entities/token.entity';
+import { TokenPriceUpdateService } from '../../src/services/token-price-update.service';
+import { MockPriceService } from '../../src/services/mock-price.service';
+import { KafkaProducerService } from '../../src/kafka/kafka-producer.service';
+import { TokenPriceUpdateMessage } from '../../src/schemas/token-price-updated.message';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
 

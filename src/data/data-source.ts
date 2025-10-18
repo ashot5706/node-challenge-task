@@ -1,5 +1,5 @@
 import { DataSource } from 'typeorm';
-import { Token } from '../models/token.entity';
+import { Token } from '../entities/token.entity';
 import { InitialMigration1684654321000 } from '../migrations/1684654321000-InitialMigration';
 
 export const AppDataSource = new DataSource({

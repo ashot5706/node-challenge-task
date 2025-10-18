@@ -1,6 +1,6 @@
-import { AppDataSource } from './data-source';
-import { TokenSeeder } from './token.seeder';
-import { Token } from '../models/token.entity';
+import { AppDataSource } from '../src/data/data-source';
+import { TokenSeeder } from '../src/data/token.seeder';
+import { Token } from '../src/entities/token.entity';
 
 async function seed() {
   try {
