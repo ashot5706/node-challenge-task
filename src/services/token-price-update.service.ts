@@ -1,16 +1,19 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Token } from '../entities/token.entity';
 import { MockPriceService } from './mock-price.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import { createTokenPriceUpdateMessage } from '../schemas/token-price-updated.message';
+import pAll from 'p-all';
 
 @Injectable()
 export class TokenPriceUpdateService implements OnModuleDestroy {
   private readonly logger = new Logger(TokenPriceUpdateService.name);
   private timer: NodeJS.Timeout;
   private readonly updateIntervalSeconds: number = 5;
+  private readonly batchSize: number = 100;
+  private readonly concurrency: number = 20;
   private isRunning: boolean = false;
 
   constructor(
@@ -18,6 +21,7 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
     private readonly tokenRepository: Repository<Token>,
     private readonly priceService: MockPriceService,
     private readonly kafkaProducer: KafkaProducerService,
+    private readonly dataSource: DataSource,
   ) {}
 
   start(): void {
@@ -48,43 +52,77 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
 
   private async updatePrices(): Promise<void> {
     try {
-      const tokens = await this.tokenRepository.find();
-      this.logger.log(`Updating prices for ${tokens.length} tokens...`);
+      const totalTokens = await this.tokenRepository.count();
+      this.logger.log(`Starting batch price updates for ${totalTokens} tokens (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`);
       
-      for (const token of tokens) {
-        await this.updateTokenPrice(token);
+      let processedTokens = 0;
+      let offset = 0;
+
+      while (offset < totalTokens) {
+        const tokenBatch = await this.tokenRepository.find({
+          take: this.batchSize,
+          skip: offset,
+          order: { symbol: 'ASC' },
+        });
+
+        if (tokenBatch.length === 0) {
+          break; // No more tokens to process
+        }
+
+        this.logger.log(`Processing batch ${Math.floor(offset / this.batchSize) + 1}: ${tokenBatch.length} tokens (${processedTokens + 1}-${processedTokens + tokenBatch.length} of ${totalTokens})`);
+
+        // Process batch with parallel execution
+        const updateTasks = tokenBatch.map(token => () => this.updateTokenPrice(token));
+
+        await pAll(updateTasks, {
+          concurrency: this.concurrency,
+          stopOnError: false,
+        });
+
+        processedTokens += tokenBatch.length;
+        offset += this.batchSize;
+
+        this.logger.log(`Completed batch: ${processedTokens}/${totalTokens} tokens processed`);
       }
+      
+      this.logger.log(`Price update cycle completed: ${processedTokens} tokens processed`);
     } catch (error) {
       this.logger.error(`Error updating prices: ${error.message}`);      
     }
   }
 
   private async updateTokenPrice(token: Token): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
     try {
       const oldPrice = token.price;
       const newPrice = await this.priceService.getRandomPriceForToken(token);
       
       if (oldPrice !== newPrice) {
-        // Create message for Kafka using Zod helper function
+        token.price = newPrice;
+        token.lastPriceUpdate = new Date();
+
+        await queryRunner.manager.save(token);
+
         const message = createTokenPriceUpdateMessage({
           tokenId: token.id,
           symbol: token.symbol || 'UNKNOWN',
           oldPrice: oldPrice,
           newPrice: newPrice,
-          // timestamp will be set to current date by default if not provided
         });
         
         await this.kafkaProducer.sendPriceUpdateMessage(message);
-        
-        // Update token in database
-        token.price = newPrice;
-        token.lastPriceUpdate = new Date();
-        
-        await this.tokenRepository.save(token);
+        await queryRunner.commitTransaction();
         this.logger.log(`Updated price for ${token.symbol}: ${oldPrice / 100000000n} -> ${newPrice / 100000000n}`);
       }
     } catch (error) {
+      await queryRunner.rollbackTransaction();
       this.logger.error(`Error updating price for token ${token.id}: ${error.message}`);      
+    } finally {
+      await queryRunner.release();
     }
   }
 

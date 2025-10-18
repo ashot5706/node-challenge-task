@@ -52,3 +52,8 @@ Created separate folder for api endpoints
 - Kafka topics moved from configuration to constants for better maintainability
 - Implemented dotenv for proper environment variable loading
 - Fixed Jest configuration to properly find and run tests in the test directory
+- Implemented batch processing with parallel execution for price updates using p-all library
+- Fixed batch size to 100 tokens per batch and concurrency to 20 parallel updates
+- Implemented transactional price updates with proper sequence: save to DB first, then send Kafka message
+
+
