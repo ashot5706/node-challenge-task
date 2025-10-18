@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
@@ -8,11 +9,14 @@ async function bootstrap() {
   
   try {
     const app = await NestFactory.create(AppModule);
-    await app.listen(3000);
-    logger.log('Service is running on port 3000');
+    const port = process.env.PORT || 3000;
+
+    await app.listen(port);
+    logger.log(`Service is running on port ${port}`);
   } catch (error) {
-    // Bug: Not handling exceptions properly
-    logger.error(`Error: ${error.message}`);
+    logger.error('Failed to start application', error.stack);
+    process.exit(1);
   }
 }
+
 bootstrap();

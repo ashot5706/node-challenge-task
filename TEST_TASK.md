@@ -41,4 +41,14 @@ Created separate folder for api endpoints
   - (38,0) for totalSupply as some tokens have very large supplies
 5. Poor indexing - fixed by adding indexes on frequently queried columns
 6. Added connection pooling and timeout settings in database configuration
+7. Seed script updated to use NestJS DI instead of manual repository creation
 
+## Dependency Injection
+1. Used NestJS DI properly instead of manual instantiation of services and repositories
+2. Used DI for configs as well
+
+
+## Other Improvements
+- Kafka topics moved from configuration to constants for better maintainability
+- Implemented dotenv for proper environment variable loading
+- Fixed Jest configuration to properly find and run tests in the test directory

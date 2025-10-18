@@ -1,27 +1,13 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Kafka, Producer } from 'kafkajs';
+import { Injectable, Logger } from '@nestjs/common';
 import { TokenPriceUpdateMessage, tokenPriceUpdateMessageSchema } from '../schemas/token-price-updated.message';
+import { KafkaClientService } from './kafka-client.service';
+import { KAFKA_TOPICS } from '../constants/kafka-topics';
 
 @Injectable()
-export class KafkaProducerService implements OnModuleDestroy {
+export class KafkaProducerService {
   private readonly logger = new Logger(KafkaProducerService.name);
-  private readonly producer: Producer;
-  private readonly topic: string = 'token-price-updates';
   
-  constructor() {
-    const kafka = new Kafka({
-      clientId: 'token-price-service',
-      brokers: ['localhost:9092'],
-    });
-    
-    this.producer = kafka.producer();
-    this.connect();
-  }
-  
-  private async connect(): Promise<void> {
-    await this.producer.connect();
-    this.logger.log('Connected to Kafka');
-  }
+  constructor(private readonly kafkaClient: KafkaClientService) {}
   
   async sendPriceUpdateMessage(message: TokenPriceUpdateMessage): Promise<void> {
     try {
@@ -32,8 +18,10 @@ export class KafkaProducerService implements OnModuleDestroy {
         typeof v === 'bigint' ? v.toString() : v
       );
       
-      this.producer.send({
-        topic: this.topic,
+      const producer = this.kafkaClient.getProducer();
+      
+      await producer.send({
+        topic: KAFKA_TOPICS.TOKEN_PRICE_UPDATES,
         messages: [
           { 
             key: message.tokenId, 
@@ -43,18 +31,9 @@ export class KafkaProducerService implements OnModuleDestroy {
       });
       
       this.logger.log(`Sent message to Kafka: ${value}`);
-      return;
     } catch (error) {
       this.logger.error(`Error sending message: ${error.message}`);      
-    }
-  }
-  
-  async onModuleDestroy(): Promise<void> {
-    try {
-      await this.producer.disconnect();
-      this.logger.log('Disconnected from Kafka');
-    } catch (error) {
-      this.logger.error('Error disconnecting from Kafka', error.stack);
+      throw error;
     }
   }
 }

@@ -9,6 +9,7 @@ import { TokenPriceUpdateMessage } from '../../src/schemas/token-price-updated.m
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Chain, Token } from 'src/entities';
+import { KAFKA_TOPICS } from '../../src/constants/kafka-topics';
 
 describe('TokenPriceService Integration Tests', () => {
   let postgresContainer: StartedTestContainer;
@@ -20,7 +21,7 @@ describe('TokenPriceService Integration Tests', () => {
   let tokenPriceUpdateService: TokenPriceUpdateService;
   let kafkaConsumer: Consumer;
   
-  const kafkaTopic = 'token-price-updates';
+  const kafkaTopic = KAFKA_TOPICS.TOKEN_PRICE_UPDATES;
   const testId = Math.random().toString(36).substring(7);
   
   const getAvailablePort = async (): Promise<number> => {
@@ -111,6 +112,20 @@ describe('TokenPriceService Integration Tests', () => {
         providers: [
           TokenPriceUpdateService,
           MockPriceService,
+          {
+            provide: 'ConfigService',
+            useValue: {
+              get: jest.fn((key: string, defaultValue?: any) => {
+                const config = {
+                  'PRICE_MIN_DOLLARS': 1,
+                  'PRICE_MAX_DOLLARS': 10000000,
+                  'PRICE_API_MIN_DELAY_MS': 50,
+                  'PRICE_API_MAX_DELAY_MS': 200,
+                };
+                return config[key] || defaultValue;
+              }),
+            },
+          },
           {
             provide: KafkaProducerService,
             useValue: {

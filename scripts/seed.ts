@@ -1,25 +1,36 @@
+import 'dotenv/config';
+import { NestFactory } from '@nestjs/core';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Module } from '@nestjs/common';
 import { Chain, Token } from 'src/entities';
-import { AppDataSource } from '../src/data/data-source';
 import { TokenSeeder } from '../src/data/token.seeder';
+import { databaseConfig } from '../src/config/database.config';
+
+@Module({
+  imports: [
+    TypeOrmModule.forRoot(databaseConfig),
+    TypeOrmModule.forFeature([Token, Chain]),
+  ],
+  providers: [TokenSeeder],
+})
+class SeederModule {}
 
 async function seed() {
   try {
-    // Initialize the data source
-    await AppDataSource.initialize();
-    console.log('Data source has been initialized');
+    // Create NestJS application context
+    const app = await NestFactory.createApplicationContext(SeederModule);
+    console.log('NestJS application context created');
 
-    // Create token seeder
-    const tokenRepository = AppDataSource.getRepository(Token);
-    const chainRepository = AppDataSource.getRepository(Chain);
-    const tokenSeeder = new TokenSeeder(tokenRepository, chainRepository);
+    // Get the seeder service from DI container
+    const tokenSeeder = app.get(TokenSeeder);
 
     // Seed data
     await tokenSeeder.seed();
     console.log('Database seeded successfully');
 
-    // Close the connection
-    await AppDataSource.destroy();
-    console.log('Data source has been closed');
+    // Close the application context
+    await app.close();
+    console.log('Application context closed');
   } catch (error) {
     console.error('Error during seeding process:', error);
     process.exit(1);
