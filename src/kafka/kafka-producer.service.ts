@@ -28,7 +28,9 @@ export class KafkaProducerService implements OnModuleDestroy {
       // Validate the message with Zod schema      
       tokenPriceUpdateMessageSchema.parse(message);
       
-      const value = JSON.stringify(message);
+      const value = JSON.stringify(message, (_, v) => 
+        typeof v === 'bigint' ? v.toString() : v
+      );
       
       this.producer.send({
         topic: this.topic,
