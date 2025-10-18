@@ -1,6 +1,6 @@
+import { Chain, Token } from 'src/entities';
 import { AppDataSource } from '../src/data/data-source';
 import { TokenSeeder } from '../src/data/token.seeder';
-import { Token } from '../src/entities/token.entity';
 
 async function seed() {
   try {
@@ -10,7 +10,8 @@ async function seed() {
 
     // Create token seeder
     const tokenRepository = AppDataSource.getRepository(Token);
-    const tokenSeeder = new TokenSeeder(tokenRepository);
+    const chainRepository = AppDataSource.getRepository(Chain);
+    const tokenSeeder = new TokenSeeder(tokenRepository, chainRepository);
 
     // Seed data
     await tokenSeeder.seed();

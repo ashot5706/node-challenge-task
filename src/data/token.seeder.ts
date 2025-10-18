@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Chain, Token } from 'src/entities';
 import { Repository } from 'typeorm';
-import { Token } from '../entities/token.entity';
-import { validateToken } from '../dto/token.dto';
-
 @Injectable()
 export class TokenSeeder {
   private readonly logger = new Logger(TokenSeeder.name);
@@ -11,105 +9,27 @@ export class TokenSeeder {
   constructor(
     @InjectRepository(Token)
     private readonly tokenRepository: Repository<Token>,
+    @InjectRepository(Chain)
+    private readonly chainRepository: Repository<Chain>
   ) {}
 
   async seed(): Promise<void> {
     // Check if there are already tokens in the database
-    const count = await this.tokenRepository.count();
-    if (count > 0) {
+    const tokenCount = await this.tokenRepository.count();
+    if (tokenCount > 0) {
       this.logger.log('Database already seeded, skipping...');
       return;
     }
 
     this.logger.log('Seeding initial data...');
 
-    // Define token data and validate with Zod schema
-    const tokenData = [
-      {
-        address: Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]),
-        symbol: 'ETH',
-        name: 'Ethereum',
-        decimals: 18,
-        isNative: true,
-        chainId: '11111111-1111-1111-1111-111111111111',
-        isProtected: true,
-        lastUpdateAuthor: 'Seeder',
-        priority: 1,
-        timestamp: new Date(),
-        
-        chain_Id: '11111111-1111-1111-1111-111111111111',
-        chain_DeId: 1,
-        chain_Name: 'Ethereum',
-        chain_IsEnabled: true,
-        
-        logo_Id: this.generateUuid(),
-        logo_TokenId: this.generateUuid(),
-        logo_BigRelativePath: '/images/eth_big.png',
-        logo_SmallRelativePath: '/images/eth_small.png',
-        logo_ThumbRelativePath: '/images/eth_thumb.png',
-        
-        price: 300000,
-        lastPriceUpdate: new Date(),
-      },
-      {
-        address: Buffer.from([0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19]),
-        symbol: 'BTC',
-        name: 'Bitcoin',
-        decimals: 8,
-        isNative: true,
-        chainId: '22222222-2222-2222-2222-222222222222',
-        isProtected: true,
-        lastUpdateAuthor: 'Seeder',
-        priority: 2,
-        timestamp: new Date(),
-        
-        chain_Id: '22222222-2222-2222-2222-222222222222',
-        chain_DeId: 2,
-        chain_Name: 'Bitcoin',
-        chain_IsEnabled: true,
-        
-        logo_Id: this.generateUuid(),
-        logo_TokenId: this.generateUuid(),
-        logo_BigRelativePath: '/images/btc_big.png',
-        logo_SmallRelativePath: '/images/btc_small.png',
-        logo_ThumbRelativePath: '/images/btc_thumb.png',
-        
-        price: 4500000,
-        lastPriceUpdate: new Date(),
-      },
-      {
-        address: Buffer.from([0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29]),
-        symbol: 'SOL',
-        name: 'Solana',
-        decimals: 9,
-        isNative: true,
-        chainId: '33333333-3333-3333-3333-333333333333',
-        isProtected: true,
-        lastUpdateAuthor: 'Seeder',
-        priority: 3,
-        timestamp: new Date(),
-        
-        chain_Id: '33333333-3333-3333-3333-333333333333',
-        chain_DeId: 3,
-        chain_Name: 'Solana',
-        chain_IsEnabled: true,
-        
-        logo_Id: this.generateUuid(),
-        logo_TokenId: this.generateUuid(),
-        logo_BigRelativePath: '/images/sol_big.png',
-        logo_SmallRelativePath: '/images/sol_small.png',
-        logo_ThumbRelativePath: '/images/sol_thumb.png',
-        
-        price: 15000,
-        lastPriceUpdate: new Date(),
-      },
-    ];
-
     try {
-      // Validate each token with Zod schema before saving
-      const validatedTokens = tokenData.map(data => validateToken(data));
+      // First, ensure chains exist
+      await this.seedChains();
       
-      await this.tokenRepository.save(validatedTokens);
+      // Then seed tokens with their logos
+      await this.seedTokens();
+      
       this.logger.log('Initial data seeded successfully');
     } catch (error) {
       this.logger.error('Failed to seed initial data', error.stack);
@@ -117,11 +37,123 @@ export class TokenSeeder {
     }
   }
 
-  private generateUuid(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+  private async seedChains(): Promise<void> {
+    const chains = [
+      {
+        id: '11111111-1111-1111-1111-111111111111',
+        name: 'Ethereum',
+        chainId: 1,
+        isEnabled: true,
+        nativeCurrency: 'ETH',
+        rpcUrl: 'https://mainnet.infura.io/v3/YOUR_KEY',
+        explorerUrl: 'https://etherscan.io',
+      },
+      {
+        id: '22222222-2222-2222-2222-222222222222',
+        name: 'Bitcoin',
+        chainId: 0,
+        isEnabled: true,
+        nativeCurrency: 'BTC',
+        rpcUrl: null,
+        explorerUrl: 'https://blockstream.info',
+      },
+      {
+        id: '33333333-3333-3333-3333-333333333333',
+        name: 'Solana',
+        chainId: 101,
+        isEnabled: true,
+        nativeCurrency: 'SOL',
+        rpcUrl: 'https://api.mainnet-beta.solana.com',
+        explorerUrl: 'https://explorer.solana.com',
+      },
+    ];
+
+    for (const chainData of chains) {
+      const existingChain = await this.chainRepository.findOne({ where: { id: chainData.id } });
+      if (!existingChain) {
+        const chain = this.chainRepository.create(chainData);
+        await this.chainRepository.save(chain);
+        this.logger.log(`Created chain: ${chainData.name}`);
+      }
+    }
+  }
+
+  private async seedTokens(): Promise<void> {
+    const tokenData = [
+      {
+        id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'ETH',
+        name: 'Ethereum',
+        decimals: 18,
+        isNative: true,
+        isProtected: true,
+        isVerified: true,
+        lastUpdateAuthor: 'Seeder',
+        priority: 1,
+        totalSupply: 120000000000000000000000000n,
+        price: 3000_00000000n, // $3000.00 in 10^-8 dollars
+        chainId: '11111111-1111-1111-1111-111111111111',
+        logoUrl: '/images/eth_big.png',
+      },
+      {
+        id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'BTC',
+        name: 'Bitcoin',
+        decimals: 8,
+        isNative: true,
+        isProtected: true,
+        isVerified: true,
+        lastUpdateAuthor: 'Seeder',
+        priority: 2,
+        totalSupply: 2100000000000000n,
+        price: 450000_00000000n, // $45000.00 in 10^-8 dollars
+        chainId: '22222222-2222-2222-2222-222222222222',
+        logoUrl: '/images/btc_big.png',
+      },
+      {
+        id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        address: 'So11111111111111111111111111111111111111112', // Solana native token address
+        symbol: 'SOL',
+        name: 'Solana',
+        decimals: 9,
+        isNative: true,
+        isProtected: true,
+        isVerified: true,
+        lastUpdateAuthor: 'Seeder',
+        priority: 3,
+        totalSupply: 500000000000000000n,
+        price: 150_00000000n, // $150.00 in 10^-8 dollars
+        chainId: '33333333-3333-3333-3333-333333333333',
+        logoUrl: '/images/sol_big.png',
+      },
+    ];
+
+    for (const data of tokenData) {
+      const existingToken = await this.tokenRepository.findOne({ where: { id: data.id } });
+      if (!existingToken) {
+        // Create the token
+        const token = this.tokenRepository.create({
+          id: data.id,
+          address: data.address,
+          symbol: data.symbol,
+          name: data.name,
+          decimals: data.decimals,
+          isNative: data.isNative,
+          isProtected: data.isProtected,
+          isVerified: data.isVerified,
+          lastUpdateAuthor: data.lastUpdateAuthor,
+          priority: data.priority,
+          price: data.price,
+          chainId: data.chainId,
+          logoUrl: data.logoUrl,
+        });
+
+        await this.tokenRepository.save(token);
+
+        this.logger.log(`Created token: ${data.symbol} with logo`);
+      }
+    }
   }
 }

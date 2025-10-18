@@ -69,8 +69,8 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
         const message = createTokenPriceUpdateMessage({
           tokenId: token.id,
           symbol: token.symbol || 'UNKNOWN',
-          oldPrice,
-          newPrice,
+          oldPrice: oldPrice,
+          newPrice: newPrice,
           // timestamp will be set to current date by default if not provided
         });
         
@@ -81,7 +81,7 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
         token.lastPriceUpdate = new Date();
         
         await this.tokenRepository.save(token);
-        this.logger.log(`Updated price for ${token.symbol}: ${oldPrice} -> ${newPrice}`);
+        this.logger.log(`Updated price for ${token.symbol}: ${oldPrice / 100000000n} -> ${newPrice / 100000000n}`);
       }
     } catch (error) {
       this.logger.error(`Error updating price for token ${token.id}: ${error.message}`);      

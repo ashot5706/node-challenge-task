@@ -1,13 +1,13 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { Token } from './entities/token.entity';
 import { TokenPriceUpdateService } from './services/token-price-update.service';
 import { MockPriceService } from './services/mock-price.service';
 import { KafkaProducerService } from './kafka/kafka-producer.service';
 import { TokenSeeder } from './data/token.seeder';
 import { databaseConfig } from './config/database.config';
 import * as controllers from './controllers';
+import * as entities from './entities';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import * as controllers from './controllers';
       isGlobal: true,
     }),
     TypeOrmModule.forRoot(databaseConfig),
-    TypeOrmModule.forFeature([Token]),
+    TypeOrmModule.forFeature(Object.values(entities)),
   ],
   controllers: Object.values(controllers),
   providers: [

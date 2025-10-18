@@ -2,13 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GenericContainer, StartedTestContainer } from 'testcontainers';
 import { Kafka, Consumer, KafkaMessage } from 'kafkajs';
-import { Token } from '../../src/entities/token.entity';
 import { TokenPriceUpdateService } from '../../src/services/token-price-update.service';
 import { MockPriceService } from '../../src/services/mock-price.service';
 import { KafkaProducerService } from '../../src/kafka/kafka-producer.service';
 import { TokenPriceUpdateMessage } from '../../src/schemas/token-price-updated.message';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Chain, Token } from 'src/entities';
 
 describe('TokenPriceService Integration Tests', () => {
   let postgresContainer: StartedTestContainer;
@@ -16,6 +16,7 @@ describe('TokenPriceService Integration Tests', () => {
   let kafkaContainer: StartedTestContainer;
   let moduleRef: TestingModule;
   let tokenRepository: Repository<Token>;
+  let chainRepository: Repository<Chain>;
   let tokenPriceUpdateService: TokenPriceUpdateService;
   let kafkaConsumer: Consumer;
   
@@ -102,10 +103,10 @@ describe('TokenPriceService Integration Tests', () => {
             username: 'testuser',
             password: 'testpassword',
             database: 'testdb',
-            entities: [Token],
+            entities: [Token, Chain],
             synchronize: true,
           }),
-          TypeOrmModule.forFeature([Token]),
+          TypeOrmModule.forFeature([Token, Chain]),
         ],
         providers: [
           TokenPriceUpdateService,
@@ -122,6 +123,7 @@ describe('TokenPriceService Integration Tests', () => {
       }).compile();
       
       tokenRepository = moduleRef.get<Repository<Token>>(getRepositoryToken(Token));
+      chainRepository = moduleRef.get<Repository<Chain>>(getRepositoryToken(Chain));
       tokenPriceUpdateService = moduleRef.get<TokenPriceUpdateService>(TokenPriceUpdateService);
       
     } catch (error) {
@@ -153,9 +155,19 @@ describe('TokenPriceService Integration Tests', () => {
   }, 30000);
   
   it('should update token price and send Kafka message', async () => {
-    // Create test token
+    // Create test chain first
+    const chain = new Chain();
+    chain.id = '11111111-1111-1111-1111-111111111111';
+    chain.name = 'Test Chain';
+    chain.chainId = 1;
+    chain.isEnabled = true;
+    chain.nativeCurrency = 'TEST';
+    
+    await chainRepository.save(chain);
+    
+    // Create test token with normalized schema
     const token = new Token();
-    token.address = Buffer.from([0x01, 0x02, 0x03]);
+    token.address = '0x1234567890123456789012345678901234567890';
     token.symbol = 'TEST';
     token.name = 'Test Token';
     token.decimals = 18;
@@ -163,17 +175,7 @@ describe('TokenPriceService Integration Tests', () => {
     token.chainId = '11111111-1111-1111-1111-111111111111';
     token.isProtected = false;
     token.priority = 1;
-    token.timestamp = new Date();
-    token.chain_Id = '11111111-1111-1111-1111-111111111111';
-    token.chain_DeId = 1;
-    token.chain_Name = 'Test Chain';
-    token.chain_IsEnabled = true;
-    token.logo_Id = '22222222-2222-2222-2222-222222222222';
-    token.logo_TokenId = '33333333-3333-3333-3333-333333333333';
-    token.logo_BigRelativePath = '/test.png';
-    token.logo_SmallRelativePath = '/test_small.png';
-    token.logo_ThumbRelativePath = '/test_thumb.png';
-    token.price = 100;
+    token.price = 100000000n; // $1.00 in 10^-8 dollars
     token.lastPriceUpdate = new Date();
     
     await tokenRepository.save(token);
@@ -190,7 +192,7 @@ describe('TokenPriceService Integration Tests', () => {
     // Check if token price was updated in the database
     const updatedToken = await tokenRepository.findOne({ where: { id: token.id } });
     expect(updatedToken).toBeDefined();
-    expect(updatedToken.price).not.toEqual(100);
+    expect(updatedToken.price).not.toEqual(100000000n);
     
     // Note: In a real test, we would also check for Kafka messages,
     // but since we're mocking the KafkaProducerService, we can't do that here

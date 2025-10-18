@@ -1,4 +1,5 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 export const databaseConfig: TypeOrmModuleOptions = {
   type: 'postgres',
@@ -7,9 +8,17 @@ export const databaseConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'tokens',
-  entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
-  migrations: [__dirname + '/../migrations/*{.ts,.js}'],
-  migrationsRun: true,
+  entities: ['src/entities/*.entity.{ts,js}'],
+  migrations: ['src/migrations/*.{ts,js}'],
+  migrationsRun: false,
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
+  // Naming strategy: camelCase in TypeScript -> snake_case in database
+  namingStrategy: new SnakeNamingStrategy(),
+  // Connection pool configuration
+  extra: {
+    max: 5,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+  },
 };

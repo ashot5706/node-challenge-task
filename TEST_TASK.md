@@ -32,3 +32,13 @@ Created separate folder for api endpoints
 
 
 ## Database Schema Improvements
+
+1. Single table contained data for multiple entities, separated into different tables
+2. Mixed naming styles, fixed to have convention - camelCase in TypeScript and snake_case in DB, for that purpose used `SnakeNamingStrategy` from `typeorm-naming-strategies` package
+3. Added corresponding relationships and contraints
+4. inadequate data types fixed - blockchain addresses as strings, financial data as bigint with transformers (28,0) or (38,0) decimal types in DB
+  - (28,0) for prices as they are usually not that big and used scale 0 to work with integers only, convention here is that it shows price in 10^-8 dollars, so $12.34 is stored as 12_34000000n, this will help in safe operations in Node.js side and will opimize operations in DB side as well as integer operations are faster
+  - (38,0) for totalSupply as some tokens have very large supplies
+5. Poor indexing - fixed by adding indexes on frequently queried columns
+6. Added connection pooling and timeout settings in database configuration
+
