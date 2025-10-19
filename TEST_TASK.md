@@ -61,4 +61,6 @@ Created separate folder for api endpoints
 - Implemented distributed lock using Redis to prevent overlapping executions across multiple instances
 - Added Redis configuration and service for distributed locking
 - Implemented uncaugth error handling and graceful shutdown hooks
+- Configured ESLint and Prettier for consistent code formatting and style
+- Added pre-commit hooks for code quality using husky and lint-staged
 

@@ -22,24 +22,32 @@ export class TokenPriceUpdateService {
     private readonly priceService: MockPriceService,
     private readonly kafkaProducer: KafkaProducerService,
     private readonly dataSource: DataSource,
-    private readonly distributedLock: DistributedLockService,
+    private readonly distributedLock: DistributedLockService
   ) {}
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handlePriceUpdateCron(): Promise<void> {
-    const lockAcquired = await this.distributedLock.acquireLock(REDIS_LOCKS.TOKEN_PRICE_UPDATE, 30);
-    
+    const lockAcquired = await this.distributedLock.acquireLock(
+      REDIS_LOCKS.TOKEN_PRICE_UPDATE,
+      30
+    );
+
     if (!lockAcquired) {
-      this.logger.debug('Price update already running on another instance, skipping this execution');
+      this.logger.debug(
+        'Price update already running on another instance, skipping this execution'
+      );
       return;
     }
 
     this.logger.debug('Starting scheduled price update...');
-    
+
     try {
       await this.updatePrices(async () => {
         this.logger.debug('Heartbeat: price update in progress...');
-        await this.distributedLock.extendLock(REDIS_LOCKS.TOKEN_PRICE_UPDATE, 30);
+        await this.distributedLock.extendLock(
+          REDIS_LOCKS.TOKEN_PRICE_UPDATE,
+          30
+        );
       });
     } catch (error) {
       this.logger.error(`Error in scheduled price update: ${error.message}`);
@@ -51,8 +59,10 @@ export class TokenPriceUpdateService {
   private async updatePrices(heartbeat: () => Promise<void>): Promise<void> {
     try {
       const totalTokens = await this.tokenRepository.count();
-      this.logger.log(`Starting batch price updates for ${totalTokens} tokens (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`);
-      
+      this.logger.log(
+        `Starting batch price updates for ${totalTokens} tokens (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`
+      );
+
       let processedTokens = 0;
       let offset = 0;
 
@@ -67,10 +77,18 @@ export class TokenPriceUpdateService {
           break; // No more tokens to process
         }
 
-        this.logger.log(`Processing batch ${Math.floor(offset / this.batchSize) + 1}: ${tokenBatch.length} tokens (${processedTokens + 1}-${processedTokens + tokenBatch.length} of ${totalTokens})`);
+        this.logger.log(
+          `Processing batch ${Math.floor(offset / this.batchSize) + 1}: ${
+            tokenBatch.length
+          } tokens (${processedTokens + 1}-${
+            processedTokens + tokenBatch.length
+          } of ${totalTokens})`
+        );
 
         // Process batch with parallel execution
-        const updateTasks = tokenBatch.map(token => () => this.updateTokenPrice(token));
+        const updateTasks = tokenBatch.map(
+          token => () => this.updateTokenPrice(token)
+        );
 
         await pAll(updateTasks, {
           concurrency: this.concurrency,
@@ -80,26 +98,30 @@ export class TokenPriceUpdateService {
         processedTokens += tokenBatch.length;
         offset += this.batchSize;
 
-        this.logger.log(`Completed batch: ${processedTokens}/${totalTokens} tokens processed`);
+        this.logger.log(
+          `Completed batch: ${processedTokens}/${totalTokens} tokens processed`
+        );
         await heartbeat();
       }
-      
-      this.logger.log(`Price update cycle completed: ${processedTokens} tokens processed`);
+
+      this.logger.log(
+        `Price update cycle completed: ${processedTokens} tokens processed`
+      );
     } catch (error) {
-      this.logger.error(`Error updating prices: ${error.message}`);      
+      this.logger.error(`Error updating prices: ${error.message}`);
     }
   }
 
   private async updateTokenPrice(token: Token): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
-    
+
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
       const oldPrice = token.price;
       const newPrice = await this.priceService.getRandomPriceForToken(token);
-      
+
       if (oldPrice !== newPrice) {
         token.price = newPrice;
         token.lastPriceUpdate = new Date();
@@ -109,21 +131,26 @@ export class TokenPriceUpdateService {
         const message = createTokenPriceUpdateMessage({
           tokenId: token.id,
           symbol: token.symbol || 'UNKNOWN',
-          oldPrice: oldPrice,
-          newPrice: newPrice,
+          oldPrice,
+          newPrice,
         });
-        
+
         await this.kafkaProducer.sendPriceUpdateMessage(message);
-        this.logger.log(`Updated price for ${token.symbol}: ${oldPrice / 100000000n} -> ${newPrice / 100000000n}`);
+        this.logger.log(
+          `Updated price for ${token.symbol}: ${oldPrice / 100000000n} -> ${
+            newPrice / 100000000n
+          }`
+        );
       }
-      
+
       await queryRunner.commitTransaction();
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`Error updating price for token ${token.id}: ${error.message}`);      
+      this.logger.error(
+        `Error updating price for token ${token.id}: ${error.message}`
+      );
     } finally {
       await queryRunner.release();
     }
   }
-
 }

@@ -6,15 +6,18 @@ import { PriceConfigService } from '../config/price.config';
 export class MockPriceService {
   constructor(private readonly priceConfig: PriceConfigService) {}
 
-  async getRandomPriceForToken(token: Token): Promise<bigint> {
-    // Simulate API call delay  
-    await new Promise<void>((resolve) => {
+  async getRandomPriceForToken(_token: Token): Promise<bigint> {
+    // Simulate API call delay
+    await new Promise<void>(resolve => {
       setTimeout(() => {
         resolve();
       }, this.getRandomInt(this.priceConfig.minDelayMs, this.priceConfig.maxDelayMs));
     });
-    
-    const dollars = this.getRandomInt(this.priceConfig.minPriceDollars, this.priceConfig.maxPriceDollars);
+
+    const dollars = this.getRandomInt(
+      this.priceConfig.minPriceDollars,
+      this.priceConfig.maxPriceDollars
+    );
     const decimalsPart = this.getRandomInt(0, 99999999);
     const price = BigInt(dollars) * 100000000n + BigInt(decimalsPart);
     return price;
