@@ -60,6 +60,5 @@ Created separate folder for api endpoints
 - Added overlapping execution prevention to ensure only one price update cycle runs at a time
 - Implemented distributed lock using Redis to prevent overlapping executions across multiple instances
 - Added Redis configuration and service for distributed locking
-
-
+- Implemented uncaugth error handling and graceful shutdown hooks
 

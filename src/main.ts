@@ -3,8 +3,9 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 
+const logger = new Logger('Main');
+
 async function bootstrap() {
-  const logger = new Logger('Main');
   logger.log('Starting Token Price Service...');
   
   try {
@@ -12,6 +13,8 @@ async function bootstrap() {
     const port = process.env.PORT || 3000;
 
     await app.listen(port);
+    app.enableShutdownHooks();
+
     logger.log(`Service is running on port ${port}`);
   } catch (error) {
     logger.error('Failed to start application', error.stack);
@@ -20,3 +23,12 @@ async function bootstrap() {
 }
 
 bootstrap();
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  process.exit(1);
+});
