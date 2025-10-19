@@ -55,5 +55,11 @@ Created separate folder for api endpoints
 - Implemented batch processing with parallel execution for price updates using p-all library
 - Fixed batch size to 100 tokens per batch and concurrency to 20 parallel updates
 - Implemented transactional price updates with proper sequence: save to DB first, then send Kafka message
+- Replaced interval-based price updates with NestJS scheduler using @Cron decorator (every 5 seconds)
+- Removed manual start/stop methods in favor of automatic scheduler management
+- Added overlapping execution prevention to ensure only one price update cycle runs at a time
+- Implemented distributed lock using Redis to prevent overlapping executions across multiple instances
+- Added Redis configuration and service for distributed locking
+
 
 

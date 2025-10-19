@@ -2,14 +2,17 @@ import 'reflect-metadata';
 import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TokenPriceUpdateService } from './services/token-price-update.service';
 import { MockPriceService } from './services/mock-price.service';
 import { KafkaProducerService } from './kafka/kafka-producer.service';
 import { KafkaClientService } from './kafka/kafka-client.service';
+import { DistributedLockService } from './services/distributed-lock.service';
 import { TokenSeeder } from './data/token.seeder';
 import { databaseConfig } from './config/database.config';
 import { KafkaConfigService } from './config/kafka.config';
 import { PriceConfigService } from './config/price.config';
+import { RedisConfigService } from './config/redis.config';
 import * as controllers from './controllers';
 import * as entities from './entities';
 
@@ -19,6 +22,7 @@ import * as entities from './entities';
       isGlobal: true,
       envFilePath: ['.env'],
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRoot(databaseConfig),
     TypeOrmModule.forFeature(Object.values(entities)),
   ],
@@ -27,10 +31,12 @@ import * as entities from './entities';
     // Configuration services
     KafkaConfigService,
     PriceConfigService,
+    RedisConfigService,
     
     // Core services
     KafkaClientService,
     KafkaProducerService,
+    DistributedLockService,
     MockPriceService,
     TokenPriceUpdateService,
     TokenSeeder,
@@ -39,16 +45,12 @@ import * as entities from './entities';
 export class AppModule implements OnModuleInit {
   constructor(
     private readonly tokenSeeder: TokenSeeder,
-    private readonly tokenPriceUpdateService: TokenPriceUpdateService,
   ) {}
 
   async onModuleInit() {
     try {
       // Seed initial data
       await this.tokenSeeder.seed();
-      
-      // Start price update service
-      this.tokenPriceUpdateService.start();
     } catch (error) {
       console.error('Failed to initialize application:', error);
     }

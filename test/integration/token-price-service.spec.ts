@@ -195,14 +195,8 @@ describe('TokenPriceService Integration Tests', () => {
     
     await tokenRepository.save(token);
     
-    // Start price update service
-    tokenPriceUpdateService.start();
-    
-    // Wait for price updates to occur
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // Stop the service
-    tokenPriceUpdateService.stop();
+    // Trigger price update manually (since scheduler is disabled in tests)
+    await tokenPriceUpdateService['updatePrices']();
     
     // Check if token price was updated in the database
     const updatedToken = await tokenRepository.findOne({ where: { id: token.id } });

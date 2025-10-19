@@ -1,20 +1,20 @@
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Token } from '../entities/token.entity';
 import { MockPriceService } from './mock-price.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { DistributedLockService } from './distributed-lock.service';
 import { createTokenPriceUpdateMessage } from '../schemas/token-price-updated.message';
 import pAll from 'p-all';
+import { REDIS_LOCKS } from 'src/constants/redis-locks';
 
 @Injectable()
-export class TokenPriceUpdateService implements OnModuleDestroy {
+export class TokenPriceUpdateService {
   private readonly logger = new Logger(TokenPriceUpdateService.name);
-  private timer: NodeJS.Timeout;
-  private readonly updateIntervalSeconds: number = 5;
   private readonly batchSize: number = 100;
   private readonly concurrency: number = 20;
-  private isRunning: boolean = false;
 
   constructor(
     @InjectRepository(Token)
@@ -22,35 +22,33 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
     private readonly priceService: MockPriceService,
     private readonly kafkaProducer: KafkaProducerService,
     private readonly dataSource: DataSource,
+    private readonly distributedLock: DistributedLockService,
   ) {}
 
-  start(): void {
-    if (this.isRunning) {
-      this.logger.warn('Price update service is already running');
+  @Cron(CronExpression.EVERY_5_SECONDS)
+  async handlePriceUpdateCron(): Promise<void> {
+    const lockAcquired = await this.distributedLock.acquireLock(REDIS_LOCKS.TOKEN_PRICE_UPDATE, 30);
+    
+    if (!lockAcquired) {
+      this.logger.debug('Price update already running on another instance, skipping this execution');
       return;
     }
 
-    this.isRunning = true;
-    this.logger.log(`Starting price update service (interval: ${this.updateIntervalSeconds} seconds)...`);
-        
-    this.timer = setInterval(      
-      async () => {
-        try {
-          await this.updatePrices();
-        } catch (error) {
-          this.logger.error(`Error in price update interval: ${error.message}`);
-        }
-      },
-      this.updateIntervalSeconds * 1000,
-    );
-
-    // Trigger an initial update immediately
-    this.updatePrices().catch(error => {
-      this.logger.error(`Error in initial price update: ${error.message}`);
-    });
+    this.logger.debug('Starting scheduled price update...');
+    
+    try {
+      await this.updatePrices(async () => {
+        this.logger.debug('Heartbeat: price update in progress...');
+        await this.distributedLock.extendLock(REDIS_LOCKS.TOKEN_PRICE_UPDATE, 30);
+      });
+    } catch (error) {
+      this.logger.error(`Error in scheduled price update: ${error.message}`);
+    } finally {
+      await this.distributedLock.releaseLock(REDIS_LOCKS.TOKEN_PRICE_UPDATE);
+    }
   }
 
-  private async updatePrices(): Promise<void> {
+  private async updatePrices(heartbeat: () => Promise<void>): Promise<void> {
     try {
       const totalTokens = await this.tokenRepository.count();
       this.logger.log(`Starting batch price updates for ${totalTokens} tokens (batch size: ${this.batchSize}, concurrency: ${this.concurrency})`);
@@ -83,6 +81,7 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
         offset += this.batchSize;
 
         this.logger.log(`Completed batch: ${processedTokens}/${totalTokens} tokens processed`);
+        await heartbeat();
       }
       
       this.logger.log(`Price update cycle completed: ${processedTokens} tokens processed`);
@@ -115,9 +114,10 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
         });
         
         await this.kafkaProducer.sendPriceUpdateMessage(message);
-        await queryRunner.commitTransaction();
         this.logger.log(`Updated price for ${token.symbol}: ${oldPrice / 100000000n} -> ${newPrice / 100000000n}`);
       }
+      
+      await queryRunner.commitTransaction();
     } catch (error) {
       await queryRunner.rollbackTransaction();
       this.logger.error(`Error updating price for token ${token.id}: ${error.message}`);      
@@ -126,18 +126,4 @@ export class TokenPriceUpdateService implements OnModuleDestroy {
     }
   }
 
-  stop(): void {
-    if (!this.isRunning) {
-      this.logger.warn('Price update service is not running');
-      return;
-    }
-
-    clearInterval(this.timer);
-    this.isRunning = false;
-    this.logger.log('Price update service stopped');
-  }
-
-  onModuleDestroy(): void {
-    this.stop();
-  }
 }
