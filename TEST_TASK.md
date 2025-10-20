@@ -63,4 +63,5 @@ Created separate folder for api endpoints
 - Implemented uncaugth error handling and graceful shutdown hooks
 - Configured ESLint and Prettier for consistent code formatting and style
 - Added pre-commit hooks for code quality using husky and lint-staged
+- Implemented comprehensive unit and e2e tests with real edge cases and meaningful scenarios
 

@@ -1,58 +1,82 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { GenericContainer, StartedTestContainer } from 'testcontainers';
-import { Kafka, Consumer } from 'kafkajs';
+import {
+  GenericContainer,
+  Network,
+  StartedTestContainer,
+} from 'testcontainers';
+import { Kafka, Consumer, logLevel, KafkaMessage } from 'kafkajs';
 import { TokenPriceUpdateService } from '../../src/services/token-price-update.service';
 import { MockPriceService } from '../../src/services/mock-price.service';
 import { KafkaProducerService } from '../../src/kafka/kafka-producer.service';
-import { TokenPriceUpdateMessage } from '../../src/schemas/token-price-updated.message';
+import { DistributedLockService } from '../../src/services/distributed-lock.service';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Chain, Token } from 'src/entities';
+import { Token } from '../../src/entities/token.entity';
+import { Chain } from '../../src/entities/chain.entity';
 import { KAFKA_TOPICS } from '../../src/constants/kafka-topics';
+import * as entities from '../../src/entities';
+import { KafkaConfigService } from 'src/config/kafka.config';
+import { PriceConfigService } from 'src/config/price.config';
+import { RedisConfigService } from 'src/config/redis.config';
+import { KafkaClientService } from 'src/kafka/kafka-client.service';
+import { TokenSeeder } from 'src/data/token.seeder';
+import { findPort } from 'find-open-port';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 
-describe('TokenPriceService Integration Tests', () => {
-  let postgresContainer: StartedTestContainer;
-  let zookeeperContainer: StartedTestContainer;
-  let kafkaContainer: StartedTestContainer;
+// Suppress KafkaJS partitioner warning during tests
+process.env.KAFKAJS_NO_PARTITIONER_WARNING = 'true';
+
+describe('Token Price Update E2E Tests', () => {
   let moduleRef: TestingModule;
   let tokenRepository: Repository<Token>;
   let chainRepository: Repository<Chain>;
   let tokenPriceUpdateService: TokenPriceUpdateService;
   let kafkaConsumer: Consumer;
 
-  const kafkaTopic = KAFKA_TOPICS.TOKEN_PRICE_UPDATES;
+  let postgresContainer: StartedTestContainer;
+  let kafkaContainer: StartedTestContainer;
+  let zookeeperContainer: StartedTestContainer;
+  let redisContainer: StartedTestContainer;
+
   const testId = Math.random().toString(36).substring(7);
 
-  const getAvailablePort = async (): Promise<number> => {
-    // Use a random port between 10000 and 65535
-    return Math.floor(Math.random() * 55535) + 10000;
-  };
-
   beforeAll(async () => {
-    jest.setTimeout(120000); // 2 minutes timeout for container startup
+    jest.setTimeout(180000); // 3 minutes timeout for container startup
+
+    const network = await new Network().start();
+    let postgresHost: string;
+    let mappedPostgresPort: number;
+    let redisHost: string;
+    let mappedRedisPort: number;
+    let kafkaHost: string;
+    const kafkaPort = await findPort();
+    let mappedKafkaPort: number;
 
     try {
-      // Get available ports
-      await getAvailablePort();
-      const kafkaPort = await getAvailablePort();
-      await getAvailablePort();
-
-      // Start PostgreSQL container
+      // Start Postgres container
       postgresContainer = await new GenericContainer('postgres:15-alpine')
         .withName(`postgres-test-${testId}`)
         .withEnvironment({
-          POSTGRES_USER: 'testuser',
-          POSTGRES_PASSWORD: 'testpassword',
-          POSTGRES_DB: 'testdb',
+          POSTGRES_USER: 'test',
+          POSTGRES_PASSWORD: 'test',
+          POSTGRES_DB: 'test_tokens',
         })
         .withExposedPorts(5432)
         .start();
 
-      const postgresHost = postgresContainer.getHost();
-      const mappedPostgresPort = postgresContainer.getMappedPort(5432);
+      postgresHost = postgresContainer.getHost();
+      mappedPostgresPort = postgresContainer.getMappedPort(5432);
 
-      // Start Zookeeper container (required for Kafka)
+      // Start Redis container
+      redisContainer = await new GenericContainer('redis:7-alpine')
+        .withName(`redis-test-${testId}`)
+        .withExposedPorts(6379)
+        .start();
+
+      redisHost = redisContainer.getHost();
+      mappedRedisPort = redisContainer.getMappedPort(6379);
+
       zookeeperContainer = await new GenericContainer(
         'confluentinc/cp-zookeeper:7.3.0'
       )
@@ -62,28 +86,28 @@ describe('TokenPriceService Integration Tests', () => {
           ZOOKEEPER_TICK_TIME: '2000',
         })
         .withExposedPorts(2181)
+        .withNetwork(network)
         .start();
 
       // Wait for Zookeeper to start
       await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Start Kafka container
       kafkaContainer = await new GenericContainer('confluentinc/cp-kafka:7.3.0')
-        .withName(`kafka-test-${testId}`)
+        .withExposedPorts(kafkaPort)
         .withEnvironment({
           KAFKA_BROKER_ID: '1',
-          KAFKA_ZOOKEEPER_CONNECT: `${zookeeperContainer.getHost()}:${zookeeperContainer.getMappedPort(
-            2181
-          )}`,
-          KAFKA_ADVERTISED_LISTENERS: `PLAINTEXT://${kafkaContainer.getHost()}:${kafkaPort}`,
+          KAFKA_ZOOKEEPER_CONNECT: `zookeeper-test-${testId}:2181`,
+          KAFKA_LISTENERS: `PLAINTEXT://0.0.0.0:${kafkaPort}`,
+          KAFKA_ADVERTISED_LISTENERS: `PLAINTEXT://localhost:${kafkaPort}`,
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: '1',
           KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true',
         })
-        .withExposedPorts(9092)
+        .withNetwork(network)
+        .withExposedPorts({ container: kafkaPort, host: kafkaPort })
         .start();
 
-      const kafkaHost = kafkaContainer.getHost();
-      const mappedKafkaPort = kafkaContainer.getMappedPort(9092);
+      kafkaHost = kafkaContainer.getHost();
+      mappedKafkaPort = kafkaContainer.getMappedPort(kafkaPort);
 
       // Wait for Kafka to be fully ready
       await new Promise(resolve => setTimeout(resolve, 5000));
@@ -92,54 +116,66 @@ describe('TokenPriceService Integration Tests', () => {
       const kafka = new Kafka({
         clientId: 'test-client',
         brokers: [`${kafkaHost}:${mappedKafkaPort}`],
+        logLevel: logLevel.NOTHING,
       });
 
       kafkaConsumer = kafka.consumer({ groupId: 'test-consumer-group' });
       await kafkaConsumer.connect();
-      await kafkaConsumer.subscribe({ topic: kafkaTopic, fromBeginning: true });
+      await kafkaConsumer.subscribe({
+        topic: KAFKA_TOPICS.TOKEN_PRICE_UPDATES,
+        fromBeginning: false,
+      });
 
       // Create NestJS test module
       moduleRef = await Test.createTestingModule({
         imports: [
+          ConfigModule.forRoot({
+            isGlobal: true,
+          }),
           TypeOrmModule.forRoot({
             type: 'postgres',
             host: postgresHost,
             port: mappedPostgresPort,
-            username: 'testuser',
-            password: 'testpassword',
-            database: 'testdb',
-            entities: [Token, Chain],
+            username: 'test',
+            password: 'test',
+            database: 'test_tokens',
+            entities: Object.values(entities),
             synchronize: true,
+            logging: false,
+            dropSchema: true, // Ensure a clean schema for each test run
           }),
           TypeOrmModule.forFeature([Token, Chain]),
         ],
         providers: [
-          TokenPriceUpdateService,
-          MockPriceService,
           {
-            provide: 'ConfigService',
+            provide: ConfigService,
             useValue: {
               get: jest.fn((key: string, defaultValue?: any) => {
                 const config = {
-                  PRICE_MIN_DOLLARS: 1,
-                  PRICE_MAX_DOLLARS: 10000000,
-                  PRICE_API_MIN_DELAY_MS: 50,
-                  PRICE_API_MAX_DELAY_MS: 200,
+                  REDIS_HOST: redisHost,
+                  REDIS_PORT: mappedRedisPort,
+                  REDIS_DATABASE: 0,
+                  KAFKA_BROKERS: `${kafkaHost}:${mappedKafkaPort}`,
+                  KAFKA_CLIENT_ID: 'test-client',
+                  KAFKA_RETRY_INITIAL_TIME: 500,
+                  KAFKA_RETRY_ATTEMPTS: 3,
                 };
                 return config[key] || defaultValue;
               }),
             },
           },
-          {
-            provide: KafkaProducerService,
-            useValue: {
-              sendPriceUpdateMessage: jest
-                .fn()
-                .mockImplementation((_message: TokenPriceUpdateMessage) =>
-                  Promise.resolve()
-                ),
-            },
-          },
+          // Configuration services
+          KafkaConfigService,
+          PriceConfigService,
+          RedisConfigService,
+
+          // Core services
+          KafkaClientService,
+          KafkaProducerService,
+          DistributedLockService,
+          MockPriceService,
+          TokenPriceUpdateService,
+          TokenSeeder,
         ],
       }).compile();
 
@@ -156,7 +192,7 @@ describe('TokenPriceService Integration Tests', () => {
       console.error('Error during test setup:', error);
       throw error;
     }
-  }, 120000);
+  }, 180000);
 
   afterAll(async () => {
     if (moduleRef) {
@@ -178,47 +214,72 @@ describe('TokenPriceService Integration Tests', () => {
     if (zookeeperContainer) {
       await zookeeperContainer.stop();
     }
+
+    if (redisContainer) {
+      await redisContainer.stop();
+    }
   }, 30000);
 
-  it('should update token price and send Kafka message', async () => {
-    // Create test chain first
-    const chain = new Chain();
-    chain.id = '11111111-1111-1111-1111-111111111111';
-    chain.name = 'Test Chain';
-    chain.chainId = 1;
-    chain.isEnabled = true;
-    chain.nativeCurrency = 'TEST';
+  beforeEach(async () => {
+    // Clear database before each test
+    await tokenRepository.query('DELETE FROM tokens;');
+    await chainRepository.query('DELETE FROM chains;');
 
-    await chainRepository.save(chain);
+    const tokenSeeder = moduleRef.get(TokenSeeder);
 
-    // Create test token with normalized schema
-    const token = new Token();
-    token.address = '0x1234567890123456789012345678901234567890';
-    token.symbol = 'TEST';
-    token.name = 'Test Token';
-    token.decimals = 18;
-    token.isNative = false;
-    token.chainId = '11111111-1111-1111-1111-111111111111';
-    token.isProtected = false;
-    token.priority = 1;
-    token.price = 100000000n; // $1.00 in 10^-8 dollars
-    token.lastPriceUpdate = new Date();
+    // Seed data
+    await tokenSeeder.seed();
+  });
 
-    await tokenRepository.save(token);
+  describe('Token Price update integration tests', () => {
+    it('should update token price and send Kafka message', async () => {
+      const token = await tokenRepository.findOne({
+        where: { symbol: 'ETH' },
+      });
+      expect(token).toBeDefined();
+      if (!token) {
+        throw new Error('Token MOCK1 not found in database');
+      }
 
-    // Trigger price update manually (since scheduler is disabled in tests)
-    await tokenPriceUpdateService['updatePrices'](async () => {
-      // Mock heartbeat function
-    });
+      const messages: KafkaMessage[] = [];
 
-    // Check if token price was updated in the database
-    const updatedToken = await tokenRepository.findOne({
-      where: { id: token.id },
-    });
-    expect(updatedToken).toBeDefined();
-    expect(updatedToken.price).not.toEqual(100000000n);
+      await kafkaConsumer.run({
+        eachMessage: async (payload: {
+          message: KafkaMessage;
+        }): Promise<void> => {
+          messages.push(payload.message);
+        },
+      });
 
-    // Note: In a real test, we would also check for Kafka messages,
-    // but since we're mocking the KafkaProducerService, we can't do that here
-  }, 10000);
+      try {
+        await tokenPriceUpdateService.handlePriceUpdateCron();
+      } catch (error) {
+        console.error('Error during price update handling:', error);
+      }
+
+      await kafkaConsumer.stop();
+
+      const updatedToken = await tokenRepository.findOne({
+        where: { symbol: 'ETH' },
+      });
+      expect(updatedToken).toBeDefined();
+      expect(updatedToken?.price).not.toEqual(token.price);
+
+      const { key, value } =
+        messages.find(msg => msg.key?.toString() === token.id) || {};
+      expect(key).toBeDefined();
+      expect(value).toBeDefined();
+
+      const valueParsed: {
+        tokenId?: string;
+        symbol?: string;
+        oldPrice?: string;
+        newPrice?: string;
+        timestamp?: string;
+      } = JSON.parse(value?.toString() ?? '{}');
+
+      expect(valueParsed.tokenId).toBe(token.id);
+      expect(valueParsed.newPrice).toBe(updatedToken?.price.toString());
+    }, 10000);
+  });
 });

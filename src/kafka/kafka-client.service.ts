@@ -14,7 +14,7 @@ export class KafkaClientService implements OnModuleDestroy {
       brokers: this.kafkaConfig.brokers,
       retry: this.kafkaConfig.retry,
     });
-    
+
     this.producer = this.kafka.producer();
     this.connect();
   }
@@ -32,7 +32,6 @@ export class KafkaClientService implements OnModuleDestroy {
   getProducer(): Producer {
     return this.producer;
   }
-
 
   async onModuleDestroy(): Promise<void> {
     try {
