@@ -13,22 +13,22 @@ export const tokenSchema = z.object({
   lastUpdateAuthor: z.string().nullable().optional(),
   priority: z.number().int().default(0),
   timestamp: z.date().default(() => new Date()),
-  
+
   // Denormalized chain data
   chain_Id: z.string().uuid(),
   chain_DeId: z.number(),
   chain_Name: z.string(),
   chain_IsEnabled: z.boolean().default(true),
-  
+
   // Denormalized logo data
   logo_Id: z.string().uuid(),
   logo_TokenId: z.string().uuid().nullable().optional(),
   logo_BigRelativePath: z.string(),
   logo_SmallRelativePath: z.string(),
   logo_ThumbRelativePath: z.string(),
-  
+
   price: z.number().nonnegative().default(0),
-  lastPriceUpdate: z.date().default(() => new Date())
+  lastPriceUpdate: z.date().default(() => new Date()),
 });
 
 // Type derived from the schema
@@ -40,6 +40,8 @@ export function validateToken(data: Partial<TokenData>): TokenData {
 }
 
 // Helper function to validate partial token data (for updates)
-export function validatePartialToken(data: Partial<TokenData>): Partial<TokenData> {
+export function validatePartialToken(
+  data: Partial<TokenData>
+): Partial<TokenData> {
   return tokenSchema.partial().parse(data);
 }

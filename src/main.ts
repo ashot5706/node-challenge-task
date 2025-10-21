@@ -7,7 +7,7 @@ const logger = new Logger('Main');
 
 async function bootstrap() {
   logger.log('Starting Token Price Service...');
-  
+
   try {
     const app = await NestFactory.create(AppModule);
     const port = process.env.PORT || 3000;
@@ -28,7 +28,7 @@ process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', err => {
   logger.error('Uncaught Exception:', err);
   process.exit(1);
 });

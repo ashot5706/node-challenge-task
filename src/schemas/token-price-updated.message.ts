@@ -6,11 +6,13 @@ export const tokenPriceUpdateMessageSchema = z.object({
   symbol: z.string().min(1),
   oldPrice: z.bigint().nonnegative(),
   newPrice: z.bigint().nonnegative(),
-  timestamp: z.date()
+  timestamp: z.date(),
 });
 
 // Type derived from the schema
-export type TokenPriceUpdateMessage = z.infer<typeof tokenPriceUpdateMessageSchema>;
+export type TokenPriceUpdateMessage = z.infer<
+  typeof tokenPriceUpdateMessageSchema
+>;
 
 // Helper function to create a validated message
 export function createTokenPriceUpdateMessage(data: {
@@ -22,6 +24,6 @@ export function createTokenPriceUpdateMessage(data: {
 }): TokenPriceUpdateMessage {
   return tokenPriceUpdateMessageSchema.parse({
     ...data,
-    timestamp: data.timestamp || new Date()
+    timestamp: data.timestamp || new Date(),
   });
 }

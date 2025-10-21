@@ -1,4 +1,10 @@
-import { Controller, Get, Param, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Token } from '../entities/token.entity';
@@ -7,7 +13,7 @@ import { Token } from '../entities/token.entity';
 export class TokensController {
   constructor(
     @InjectRepository(Token)
-    private readonly tokenRepository: Repository<Token>,
+    private readonly tokenRepository: Repository<Token>
   ) {}
 
   @Get()
@@ -17,7 +23,7 @@ export class TokensController {
     } catch (error) {
       throw new HttpException(
         'Failed to fetch tokens',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -36,7 +42,7 @@ export class TokensController {
       }
       throw new HttpException(
         'Failed to fetch token',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
@@ -48,7 +54,7 @@ export class TokensController {
     } catch (error) {
       throw new HttpException(
         'Failed to fetch tokens by symbol',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
   }
