@@ -65,4 +65,4 @@ Created separate folder for api endpoints
 - Added pre-commit hooks for code quality using husky and lint-staged
 - Implemented comprehensive unit and e2e tests with real edge cases and meaningful scenarios
 - Added Dockerfile for containerization
-
+- Implemented GitHub Actions CI/CD pipeline with linting, testing, Docker build, and security scanning steps
