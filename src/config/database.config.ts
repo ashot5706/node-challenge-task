@@ -10,7 +10,7 @@ export const databaseConfig: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_NAME || 'tokens',
   entities: Object.values(entities),
-  migrations: [__dirname + '../src/migrations/*.{ts,js}'],
+  migrations: [`${__dirname}../src/migrations/*.{ts,js}`],
   migrationsRun: false,
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',

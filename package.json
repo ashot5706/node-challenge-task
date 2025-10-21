@@ -26,7 +26,10 @@
     "migration:run": "npm run typeorm -- migration:run -d src/data/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/data/data-source.ts",
     "db:seed": "ts-node -r tsconfig-paths/register scripts/seed.ts",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "docker:build": "docker build --target production -t token-price-service:latest .",
+    "docker:build:dev": "docker build --target development -t token-price-service:dev .",
+    "docker:build:prod": "docker build --target production -t token-price-service:prod ."
   },
   "keywords": [
     "nestjs",
@@ -43,6 +46,7 @@
     "@nestjs/core": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/schedule": "^6.0.1",
+    "@nestjs/terminus": "^11.0.0",
     "@nestjs/typeorm": "^10.0.0",
     "dotenv": "^17.2.3",
     "jest-stare": "^2.5.3",

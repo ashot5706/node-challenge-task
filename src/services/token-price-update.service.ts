@@ -7,8 +7,8 @@ import { MockPriceService } from './mock-price.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import { DistributedLockService } from './distributed-lock.service';
 import { createTokenPriceUpdateMessage } from '../schemas/token-price-updated.message';
-import pAll from 'p-all';
-import { REDIS_LOCKS } from 'src/constants/redis-locks';
+import * as pAll from 'p-all';
+import { REDIS_LOCKS } from '../constants/redis-locks';
 
 @Injectable()
 export class TokenPriceUpdateService {

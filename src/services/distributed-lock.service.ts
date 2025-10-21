@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 import { RedisConfigService } from '../config/redis.config';
-import { RedisLockKey } from 'src/constants/redis-locks';
+import { RedisLockKey } from '../constants/redis-locks';
 
 @Injectable()
 export class DistributedLockService implements OnModuleDestroy {
@@ -14,7 +14,9 @@ export class DistributedLockService implements OnModuleDestroy {
     this.client = createClient({
       url: this.redisConfig.url,
     });
-    this.instanceId = `instance-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    this.instanceId = `instance-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(7)}`;
     this.connect();
   }
 
@@ -28,17 +30,16 @@ export class DistributedLockService implements OnModuleDestroy {
     }
   }
 
-  async acquireLock(lockKey: RedisLockKey, lockTimeout: number): Promise<boolean> {
+  async acquireLock(
+    lockKey: RedisLockKey,
+    lockTimeout: number
+  ): Promise<boolean> {
     try {
-      const lockValue = `${this.instanceId}-${Date.now()}`;
-      const result = await this.client.set(
-        lockKey,
-        lockValue,
-        {
-          EX: lockTimeout,
-          NX: true, // Only set if key doesn't exist
-        }
-      );
+      const lockValue = `${this.instanceId}`;
+      const result = await this.client.set(lockKey, lockValue, {
+        EX: lockTimeout,
+        NX: true, // Only set if key doesn't exist
+      });
 
       if (result === 'OK') {
         this.locksHeld.add(lockKey);
@@ -65,14 +66,11 @@ export class DistributedLockService implements OnModuleDestroy {
         end
       `;
 
-      const lockValue = `${this.instanceId}-${Date.now()}`;
-      const result = await this.client.eval(
-        luaScript,
-        {
-          keys: [lockKey],
-          arguments: [lockValue],
-        }
-      ) as number;
+      const lockValue = `${this.instanceId}`;
+      const result = (await this.client.eval(luaScript, {
+        keys: [lockKey],
+        arguments: [lockValue],
+      })) as number;
 
       this.locksHeld.delete(lockKey);
 
@@ -99,17 +97,34 @@ export class DistributedLockService implements OnModuleDestroy {
     }
   }
 
-  async extendLock(lockKey: RedisLockKey, additionalTime: number): Promise<boolean> {
+  async extendLock(
+    lockKey: RedisLockKey,
+    additionalTime: number
+  ): Promise<boolean> {
     try {
       const result = await this.client.expire(lockKey, additionalTime);
       if (result) {
-        this.logger.debug(`Lock on ${lockKey} extended by ${additionalTime} seconds`);
+        this.logger.debug(
+          `Lock on ${lockKey} extended by ${additionalTime} seconds`
+        );
       } else {
-        this.logger.debug(`Failed to extend lock on ${lockKey} - lock may not be held`);
+        this.logger.debug(
+          `Failed to extend lock on ${lockKey} - lock may not be held`
+        );
       }
       return result;
     } catch (error) {
       this.logger.error('Error extending lock', error.stack);
+      return false;
+    }
+  }
+
+  async ping(): Promise<boolean> {
+    try {
+      const result = await this.client.ping();
+      return result === 'PONG';
+    } catch (error) {
+      this.logger.error('Redis ping failed', error.stack);
       return false;
     }
   }

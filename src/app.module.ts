@@ -3,11 +3,13 @@ import { Module, OnModuleInit } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TerminusModule } from '@nestjs/terminus';
 import { TokenPriceUpdateService } from './services/token-price-update.service';
 import { MockPriceService } from './services/mock-price.service';
 import { KafkaProducerService } from './kafka/kafka-producer.service';
 import { KafkaClientService } from './kafka/kafka-client.service';
 import { DistributedLockService } from './services/distributed-lock.service';
+import { RedisHealthIndicator } from './services/redis-health-indicator.service';
 import { TokenSeeder } from './data/token.seeder';
 import { databaseConfig } from './config/database.config';
 import { KafkaConfigService } from './config/kafka.config';
@@ -23,6 +25,7 @@ import * as entities from './entities';
       envFilePath: ['.env'],
     }),
     ScheduleModule.forRoot(),
+    TerminusModule,
     TypeOrmModule.forRoot(databaseConfig),
     TypeOrmModule.forFeature(Object.values(entities)),
   ],
@@ -32,20 +35,19 @@ import * as entities from './entities';
     KafkaConfigService,
     PriceConfigService,
     RedisConfigService,
-    
+
     // Core services
     KafkaClientService,
     KafkaProducerService,
     DistributedLockService,
+    RedisHealthIndicator,
     MockPriceService,
     TokenPriceUpdateService,
     TokenSeeder,
   ],
 })
 export class AppModule implements OnModuleInit {
-  constructor(
-    private readonly tokenSeeder: TokenSeeder,
-  ) {}
+  constructor(private readonly tokenSeeder: TokenSeeder) {}
 
   async onModuleInit() {
     try {

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Chain, Token } from 'src/entities';
+import { Chain, Token } from '../entities';
 import { Repository } from 'typeorm';
 @Injectable()
 export class TokenSeeder {
@@ -26,10 +26,10 @@ export class TokenSeeder {
     try {
       // First, ensure chains exist
       await this.seedChains();
-      
+
       // Then seed tokens with their logos
       await this.seedTokens();
-      
+
       this.logger.log('Initial data seeded successfully');
     } catch (error) {
       this.logger.error('Failed to seed initial data', error.stack);
@@ -69,7 +69,9 @@ export class TokenSeeder {
     ];
 
     for (const chainData of chains) {
-      const existingChain = await this.chainRepository.findOne({ where: { id: chainData.id } });
+      const existingChain = await this.chainRepository.findOne({
+        where: { id: chainData.id },
+      });
       if (!existingChain) {
         const chain = this.chainRepository.create(chainData);
         await this.chainRepository.save(chain);
@@ -131,7 +133,9 @@ export class TokenSeeder {
     ];
 
     for (const data of tokenData) {
-      const existingToken = await this.tokenRepository.findOne({ where: { id: data.id } });
+      const existingToken = await this.tokenRepository.findOne({
+        where: { id: data.id },
+      });
       if (!existingToken) {
         // Create the token
         const token = this.tokenRepository.create({
