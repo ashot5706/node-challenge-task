@@ -7,6 +7,7 @@ import { KafkaProducerService } from '../../src/kafka/kafka-producer.service';
 import { DistributedLockService } from '../../src/services/distributed-lock.service';
 import { Token } from '../../src/entities/token.entity';
 import { REDIS_LOCKS } from '../../src/constants/redis-locks';
+import { randomUUID } from 'crypto';
 
 describe('TokenPriceUpdateService', () => {
   let service: TokenPriceUpdateService;
@@ -35,7 +36,7 @@ describe('TokenPriceUpdateService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       lastPriceUpdate: new Date(),
-      chainId: 'chain-123',
+      chainId: '123e4567-e89b-12d3-a456-426614174000',
       chain: null, // Will be set in tests
     } as Token);
 
@@ -297,7 +298,7 @@ describe('TokenPriceUpdateService', () => {
       // Arrange
       const largeTokenList = Array.from({ length: 150 }, (_, i) => ({
         ...getMockToken(),
-        id: `token-${i}`,
+        id: randomUUID(),
         symbol: `TOKEN${i}`,
       }));
 

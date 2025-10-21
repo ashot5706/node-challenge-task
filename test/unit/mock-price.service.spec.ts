@@ -2,12 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MockPriceService } from '../../src/services/mock-price.service';
 import { PriceConfigService } from '../../src/config/price.config';
 import { Token } from '../../src/entities/token.entity';
+import { randomUUID } from 'crypto';
 
 describe('MockPriceService', () => {
   let service: MockPriceService;
 
   const mockToken: Token = {
-    id: 'test-token-id',
+    id: randomUUID(),
     symbol: 'TEST',
     name: 'Test Token',
     address: '0x123',
@@ -24,7 +25,7 @@ describe('MockPriceService', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     lastPriceUpdate: new Date(),
-    chainId: 'chain-123',
+    chainId: randomUUID(),
     chain: null,
   } as Token;
 

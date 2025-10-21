@@ -59,7 +59,7 @@ describe('DistributedLockService', () => {
       expect(result).toBe(true);
       expect(mockRedisClient.set).toHaveBeenCalledWith(
         REDIS_LOCKS.TOKEN_PRICE_UPDATE,
-        expect.stringMatching(/^instance-\d+-[a-z0-9]+-\d+$/),
+        expect.stringMatching(/^instance-\d+-[a-z0-9]+$/),
         {
           EX: 30,
           NX: true,
@@ -160,7 +160,7 @@ describe('DistributedLockService', () => {
         expect.stringContaining('if redis.call("GET", KEYS[1]) == ARGV[1]'),
         {
           keys: [REDIS_LOCKS.TOKEN_PRICE_UPDATE],
-          arguments: [expect.stringMatching(/^instance-\d+-[a-z0-9]+-\d+$/)],
+          arguments: [expect.stringMatching(/^instance-\d+-[a-z0-9]+$/)],
         }
       );
     });
